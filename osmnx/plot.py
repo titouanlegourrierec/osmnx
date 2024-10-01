@@ -34,6 +34,7 @@ try:
     from matplotlib.axes._axes import Axes  # noqa: TCH002
     from matplotlib.figure import Figure  # noqa: TCH002
     from matplotlib.projections.polar import PolarAxes  # noqa: TCH002
+    from matplotlib.animation import FuncAnimation
 
     mpl_available = True
 
@@ -370,6 +371,95 @@ def plot_graph_route(
     fig, ax = _save_and_show(fig=fig, ax=ax, **kwargs)
     return fig, ax
 
+def animate_graph_route(
+    G: nx.MultiDiGraph,
+    route: list[int],
+    *,
+    route_color: str = "r",
+    route_linewidth: float = 4,
+    route_alpha: float = 0.5,
+    orig_dest_size: float = 100,
+    ax: plt.Axes | None = None,
+    speed: float = 1.0,
+    **pg_kwargs: Any,  # noqa: ANN401
+) -> tuple[plt.Figure, plt.Axes, FuncAnimation]:
+    """
+    Visualize a path along a graph with animation.
+
+    Parameters
+    ----------
+    G
+        Input graph.
+    route
+        A path of node IDs.
+    route_color
+        The color of the route.
+    route_linewidth
+        Width of the route's line.
+    route_alpha
+        Opacity of the route's line.
+    orig_dest_size
+        Size of the origin and destination nodes.
+    ax
+        If not None, plot on this pre-existing axes instance.
+    speed
+        Speed of the animation (higher is faster).
+    pg_kwargs
+        Keyword arguments to pass to `plot_graph`.
+
+    Returns
+    -------
+    fig, ax, anim
+    """
+    _verify_mpl()
+    if ax is None:
+        # plot the graph but not the route, and override any user show/close
+        # args for now: we'll do that later
+        overrides = {"show", "save", "close"}
+        kwargs = {k: v for k, v in pg_kwargs.items() if k not in overrides}
+        fig, ax = plot_graph(G, show=False, save=False, close=False, **kwargs)
+    else:
+        fig = ax.figure  # type: ignore[assignment]
+
+    # scatterplot origin and destination points (first/last nodes in route)
+    od_x = (G.nodes[route[0]]["x"], G.nodes[route[-1]]["x"])
+    od_y = (G.nodes[route[0]]["y"], G.nodes[route[-1]]["y"])
+    ax.scatter(od_x, od_y, s=orig_dest_size, c=route_color, alpha=route_alpha, edgecolor="none")
+
+    # assemble the route edge geometries' x and y coords
+    x = []
+    y = []
+    for u, v in zip(route[:-1], route[1:]):
+        # if there are parallel edges, select the shortest in length
+        data = min(G.get_edge_data(u, v).values(), key=lambda d: d["length"])
+        if "geometry" in data:
+            # if geometry attribute exists, add all its coords to list
+            xs, ys = data["geometry"].xy
+            x.extend(xs)
+            y.extend(ys)
+        else:
+            # otherwise, the edge is a straight line from node to node
+            x.extend((G.nodes[u]["x"], G.nodes[v]["x"]))
+            y.extend((G.nodes[u]["y"], G.nodes[v]["y"]))
+
+    line, = ax.plot([], [], c=route_color, lw=route_linewidth, alpha=route_alpha)
+
+    def init():
+        line.set_data([], [])
+        return line,
+
+    def update(num):
+        line.set_data(x[:num+1], y[:num+1])
+        return line,
+
+    interval = 200 / speed
+    anim = FuncAnimation(fig, update, init_func=init, frames=len(x), interval=interval, repeat=False)
+
+    # save and show the figure as specified, passing relevant kwargs
+    sas_kwargs = {"show", "close", "save", "filepath", "dpi"}
+    kwargs = {k: v for k, v in pg_kwargs.items() if k in sas_kwargs}
+    fig, ax = _save_and_show(fig=fig, ax=ax, **kwargs)
+    return fig, ax, anim
 
 def plot_graph_routes(
     G: nx.MultiDiGraph,

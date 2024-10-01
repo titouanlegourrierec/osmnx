@@ -38,6 +38,7 @@ from .plot import plot_figure_ground as plot_figure_ground
 from .plot import plot_footprints as plot_footprints
 from .plot import plot_graph as plot_graph
 from .plot import plot_graph_route as plot_graph_route
+from .plot import plot_graph_route as animate_graph_route
 from .plot import plot_graph_routes as plot_graph_routes
 from .plot import plot_orientation as plot_orientation
 from .projection import project_graph as project_graph
