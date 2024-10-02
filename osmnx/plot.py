@@ -14,6 +14,7 @@ from typing import overload
 import networkx as nx
 import numpy as np
 import pandas as pd
+from IPython.display import HTML
 
 from . import bearing
 from . import convert
@@ -377,10 +378,12 @@ def animate_graph_route(
     *,
     route_color: str = "r",
     route_linewidth: float = 4,
-    route_alpha: float = 0.5,
+    route_alpha: float = 1,
     orig_dest_size: float = 100,
     ax: plt.Axes | None = None,
     speed: float = 1.0,
+    trail_length: int | None = None,
+    trail_alpha: float = 0.2,
     **pg_kwargs: Any,  # noqa: ANN401
 ) -> tuple[plt.Figure, plt.Axes, FuncAnimation]:
     """
@@ -404,6 +407,11 @@ def animate_graph_route(
         If not None, plot on this pre-existing axes instance.
     speed
         Speed of the animation (higher is faster).
+    trail_length
+        Length of the fading trail behind the moving line. If None, no trail
+        is drawn.
+    trail_alpha
+        Opacity of the trail.
     pg_kwargs
         Keyword arguments to pass to `plot_graph`.
 
@@ -453,6 +461,34 @@ def animate_graph_route(
         line.set_data(x[:num+1], y[:num+1])
         return line,
 
+    # if trail_length is specified, draw a fading trail behind the moving line
+    if trail_length != None:
+        lines = [ax.plot([], [], c=route_color, lw=route_linewidth, alpha=trail_alpha)[0] for _ in range(len(x) - 1)]
+        current_line, = ax.plot([], [], c=route_color, lw=route_linewidth, alpha=route_alpha)
+
+        def init():
+            for line in lines:
+                line.set_data([], [])
+            current_line.set_data([], [])
+            return lines + [current_line]
+
+        def update(num):
+            if num == 0:
+                return init()
+            if num == len(x) - 1:
+                # Set alpha of all lines to 1 at the end of the animation
+                for line in lines:
+                    line.set_alpha(1)
+            else:
+                for i, line in enumerate(lines[:num]):
+                    if num - i > trail_length:
+                        line.set_alpha(trail_alpha)
+                    else:
+                        line.set_alpha(route_alpha)
+                    line.set_data(x[i:i+2], y[i:i+2])
+            current_line.set_data(x[num-1:num+1], y[num-1:num+1])
+            return lines + [current_line]
+
     interval = 200 / speed
     anim = FuncAnimation(fig, update, init_func=init, frames=len(x), interval=interval, repeat=False)
 
@@ -460,7 +496,7 @@ def animate_graph_route(
     sas_kwargs = {"show", "close", "save", "filepath", "dpi"}
     kwargs = {k: v for k, v in pg_kwargs.items() if k in sas_kwargs}
     fig, ax = _save_and_show(fig=fig, ax=ax, **kwargs)
-    return fig, ax, anim
+    return HTML(anim.to_html5_video())
 
 def plot_graph_routes(
     G: nx.MultiDiGraph,
