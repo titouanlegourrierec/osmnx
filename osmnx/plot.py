@@ -418,6 +418,7 @@ def animate_graph_route(
         overrides = {"show", "save", "close"}
         kwargs = {k: v for k, v in pg_kwargs.items() if k not in overrides}
         fig, ax = plot_graph(G, show=False, save=False, close=False, **kwargs)
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     else:
         fig = ax.figure  # type: ignore[assignment]
 
